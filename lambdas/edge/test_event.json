@@ -1,0 +1,4 @@
+{
+  "_comment": "Sample event for testing the edge detection Lambda in the AWS Console Test tab. Replace the 'image' value with a real base64-encoded image.",
+  "body": "{\"image\": \"REPLACE_WITH_BASE64_IMAGE\"}"
+}

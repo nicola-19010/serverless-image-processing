@@ -1,0 +1,3 @@
+# Placeholder so the outputs folder exists in git.
+# Output images from local tests land here. They are temporary verification
+# artifacts and are not committed (see .gitignore).

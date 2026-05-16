@@ -1,0 +1,2 @@
+# Only needed for local development. On Lambda, Pillow is provided by a Layer.
+Pillow==10.2.0

@@ -1,0 +1,4 @@
+{
+  "_comment": "Sample event for testing the resize Lambda in the AWS Console Test tab. Replace REPLACE_WITH_BASE64_IMAGE with a real base64-encoded image. Resize behavior: pass width+height to stretch; pass only width or only height to preserve aspect ratio; pass neither to default to width=800 (proportional). Get the base64 by running: python local-tests/encode_image.py local-tests/images/medium/image_001.jpg",
+  "body": "{\"image\": \"REPLACE_WITH_BASE64_IMAGE\", \"width\": 400}"
+}

@@ -1,0 +1,27 @@
+# Python dependencies for local development and load testing
+# Install with: pip install -r requirements.txt
+#
+# Versions use lower bounds so pip picks a wheel compatible with your Python
+# (3.11, 3.12 or 3.13). If you need to pin exactly, freeze with:
+#     pip freeze > requirements-lock.txt
+
+# Image processing (same library used inside Lambda)
+Pillow>=10.0,<12
+
+# Load testing
+locust>=2.24,<3
+
+# Data analysis
+pandas>=2.0,<3
+matplotlib>=3.7,<4
+numpy>=1.26,<3
+
+# Jupyter notebook for analysis
+jupyter>=1.0
+ipykernel>=6.20
+
+# AWS SDK (optional, for downloading CloudWatch metrics)
+boto3>=1.30
+
+# Utility
+requests>=2.30,<3

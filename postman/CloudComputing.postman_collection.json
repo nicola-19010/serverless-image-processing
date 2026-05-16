@@ -1,0 +1,191 @@
+{
+  "info": {
+    "_postman_id": "cc-project-option2-2026",
+    "name": "Cloud Computing Project — Option 2",
+    "description": "Smoke tests for the 3 image-processing endpoints. Each request includes automated assertions.\n\nBy default the URLs point to the local mock server (http://127.0.0.1:5000), so you can validate the collection without deploying to AWS. Start the mock server with:\n    mock-server\\run_mock.bat\n\nOnce your Lambdas are deployed, replace the URLs in the Variables tab with the real API Gateway URLs.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "resize_url",
+      "value": "http://127.0.0.1:5000/resize",
+      "description": "Defaults to local mock server. For AWS testing, replace with Nico's API Gateway URL."
+    },
+    {
+      "key": "grayscale_url",
+      "value": "http://127.0.0.1:5000/grayscale",
+      "description": "Defaults to local mock server. For AWS testing, replace with Prajwal's API Gateway URL."
+    },
+    {
+      "key": "edge_url",
+      "value": "http://127.0.0.1:5000/edge",
+      "description": "Defaults to local mock server. For AWS testing, replace with Mathias's API Gateway URL."
+    },
+    {
+      "key": "sample_image_b64",
+      "value": "/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAUDBAQEAwUEBAQFBQUGBwwIBwcHBw8LCwkMEQ8SEhEPERETFhwXExQaFRERGCEYGh0dHx8fExciJCIeJBweHx7/2wBDAQUFBQcGBw4ICA4eFBEUHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh7/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFAEBAAAAAAAAAAAAAAAAAAAAAP/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/AKaH/9k=",
+      "description": "Tiny 1x1 JPEG, base64-encoded. Use a real image from local-tests/images/ for a meaningful test."
+    }
+  ],
+  "item": [
+    {
+      "name": "Resize",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{resize_url}}",
+          "host": [
+            "{{resize_url}}"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"image\": \"{{sample_image_b64}}\",\n    \"width\": 200\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+              "",
+              "const body = pm.response.json();",
+              "",
+              "pm.test('Response has operation = resize', () => {",
+              "    pm.expect(body.operation).to.eql('resize');",
+              "});",
+              "",
+              "pm.test('Response contains base64 image', () => {",
+              "    pm.expect(body.image).to.be.a('string');",
+              "    pm.expect(body.image.length).to.be.greaterThan(0);",
+              "});",
+              "",
+              "pm.test('Response has size_bytes', () => {",
+              "    pm.expect(body.size_bytes).to.be.a('number').and.to.be.greaterThan(0);",
+              "});",
+              "",
+              "pm.test('Response time below 30 sec', () => {",
+              "    pm.expect(pm.response.responseTime).to.be.below(30000);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "Grayscale",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{grayscale_url}}",
+          "host": [
+            "{{grayscale_url}}"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"image\": \"{{sample_image_b64}}\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+              "",
+              "const body = pm.response.json();",
+              "",
+              "pm.test('Response has operation = grayscale', () => {",
+              "    pm.expect(body.operation).to.eql('grayscale');",
+              "});",
+              "",
+              "pm.test('Response contains base64 image', () => {",
+              "    pm.expect(body.image).to.be.a('string');",
+              "    pm.expect(body.image.length).to.be.greaterThan(0);",
+              "});",
+              "",
+              "pm.test('Response has size_bytes', () => {",
+              "    pm.expect(body.size_bytes).to.be.a('number').and.to.be.greaterThan(0);",
+              "});",
+              "",
+              "pm.test('Response time below 30 sec', () => {",
+              "    pm.expect(pm.response.responseTime).to.be.below(30000);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "Edge Detection",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{edge_url}}",
+          "host": [
+            "{{edge_url}}"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"image\": \"{{sample_image_b64}}\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+              "",
+              "const body = pm.response.json();",
+              "",
+              "pm.test('Response has operation = edge_detection', () => {",
+              "    pm.expect(body.operation).to.eql('edge_detection');",
+              "});",
+              "",
+              "pm.test('Response contains base64 image', () => {",
+              "    pm.expect(body.image).to.be.a('string');",
+              "    pm.expect(body.image.length).to.be.greaterThan(0);",
+              "});",
+              "",
+              "pm.test('Response has size_bytes', () => {",
+              "    pm.expect(body.size_bytes).to.be.a('number').and.to.be.greaterThan(0);",
+              "});",
+              "",
+              "pm.test('Response time below 30 sec', () => {",
+              "    pm.expect(pm.response.responseTime).to.be.below(30000);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "response": []
+    }
+  ]
+}

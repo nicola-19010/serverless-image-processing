@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# OS
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# Lambda packages
+lambdas/**/package/
+lambdas/**/function.zip
+
+# Test artifacts
+local-tests/images/*/*.jpg
+local-tests/images/*/*.png
+local-tests/outputs/*.jpg
+local-tests/outputs/*.png
+
+# Load test results
+load-tests/results/*.csv
+
+# Notebook checkpoints
+.ipynb_checkpoints/
+
+# Secrets
+.env
+*.pem
+*.key
