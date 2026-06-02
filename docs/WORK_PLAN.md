@@ -100,7 +100,7 @@ See `DEPLOY.md` for the full step-by-step. Short version:
 3. Open the Code tab. Copy the contents of `lambdas\<your-operation>\lambda_function.py` and paste them in. Click Deploy.
 4. **Add the Pillow Lambda Layer** (so Pillow is available without packaging):
    - Scroll down to Layers → Add a layer → Specify ARN.
-   - Use the ARN from the Klayers project: `arn:aws:lambda:us-east-1:770693421928:layer:Klayers-p311-Pillow:7` (verify the latest version at https://api.klayers.cloud/api/v2/p3.11/layers/latest/us-east-1/json).
+   - Use the ARN from the Klayers project: `arn:aws:lambda:us-east-1:770693421928:layer:Klayers-p311-Pillow:11` (version verified May 2026; if it stops working, look up the latest at https://api.klayers.cloud/api/v2/p3.11/layers/latest/us-east-1/json).
 5. Increase memory and timeout: Configuration → General → **Memory: 512 MB**, **Timeout: 30 sec**.
 6. Test with the Test tab: paste the content of `lambdas\<your-operation>\test_event.json` and run.
 7. **Add API Gateway trigger:** Configuration → Triggers → Add Trigger → API Gateway → HTTP API → Open. Save.

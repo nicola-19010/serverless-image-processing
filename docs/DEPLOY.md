@@ -52,12 +52,14 @@ Lambda's base Python 3.11 image doesn't include Pillow. Instead of zipping it ou
 4. Paste:
 
 ```
-arn:aws:lambda:us-east-1:770693421928:layer:Klayers-p311-Pillow:7
+arn:aws:lambda:us-east-1:770693421928:layer:Klayers-p311-Pillow:11
 ```
 
 5. Click **Verify**, then **Add**.
 
-> If the ARN above doesn't work, look up the latest version here: https://api.klayers.cloud/api/v2/p3.11/layers/latest/us-east-1/json — find the `Pillow` entry and copy its `arn` field.
+> The version number at the end (`:11` in the ARN above) is what changes over time as Klayers rebuilds the layer with newer Pillow versions. If `:11` no longer exists, look up the current version at https://api.klayers.cloud/api/v2/p3.11/layers/latest/us-east-1/json — find the `Pillow` entry and copy its `arn` field.
+>
+> Alternative if Klayers is unavailable: build the layer yourself in AWS CloudShell (instructions in the Common Issues section below).
 
 ---
 
@@ -122,6 +124,22 @@ If you see no metrics, run a few more test invocations and refresh.
 ## Common issues
 
 **"No module named 'PIL'"** → the Pillow Layer wasn't attached, or the ARN is wrong. Re-check Step 4.
+
+**"The resource you requested does not exist" when adding the Klayers layer** → the version number in the ARN is outdated. Either look up the current version at https://api.klayers.cloud/api/v2/p3.11/layers/latest/us-east-1/json, or build your own Pillow layer in AWS CloudShell:
+
+```bash
+mkdir -p pillow-layer/python
+pip install Pillow -t pillow-layer/python/
+cd pillow-layer
+zip -r pillow-layer.zip python/
+aws lambda publish-layer-version \
+    --layer-name pillow-py311 \
+    --zip-file fileb://pillow-layer.zip \
+    --compatible-runtimes python3.11 \
+    --compatible-architectures x86_64
+```
+
+The command prints back an ARN — use that one in your Lambda. The layer lives in your Learner Lab account and can be shared across the 3 Lambdas of the group.
 
 **Timeout errors on large images** → bump memory to 1024 MB and timeout to 60 sec.
 
