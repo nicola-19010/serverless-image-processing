@@ -18,7 +18,7 @@
     },
     {
       "key": "edge_url",
-      "value": "http://127.0.0.1:5000/edge",
+      "value": "https://5sgtof2x3m.execute-api.us-east-1.amazonaws.com/default/edge-fn",
       "description": "Defaults to local mock server. For AWS testing, replace with Mathias's API Gateway URL."
     },
     {
