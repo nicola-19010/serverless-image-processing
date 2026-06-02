@@ -32,9 +32,9 @@ import requests
 
 # Same ENDPOINTS as in locustfile.py — keep these in sync!
 ENDPOINTS = {
-    "resize":    "https://REPLACE_ME.execute-api.us-east-1.amazonaws.com/default/resize-fn",
+    "resize":    "https://95tj967lqi.execute-api.us-east-1.amazonaws.com/default/resize-fn",
     "grayscale": "https://REPLACE_ME.execute-api.us-east-1.amazonaws.com/default/grayscale-fn",
-    "edge":      "https://REPLACE_ME.execute-api.us-east-1.amazonaws.com/default/edge-fn",
+    "edge":      "https://5sgtof2x3m.execute-api.us-east-1.amazonaws.com/default/edge-fn",
 }
 
 # How many cold-start rounds to do per Lambda

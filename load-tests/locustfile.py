@@ -32,9 +32,9 @@ from locust import HttpUser, task, between, events
 # Configure your endpoints here. These are the public URLs from API Gateway.
 # -----------------------------------------------------------------------------
 ENDPOINTS = {
-    "resize":    "https://REPLACE_ME.execute-api.us-east-1.amazonaws.com/default/resize-fn",
+    "resize":    "https://95tj967lqi.execute-api.us-east-1.amazonaws.com/default/resize-fn",
     "grayscale": "https://REPLACE_ME.execute-api.us-east-1.amazonaws.com/default/grayscale-fn",
-    "edge":      "https://REPLACE_ME.execute-api.us-east-1.amazonaws.com/default/edge-fn",
+    "edge":      "https://5sgtof2x3m.execute-api.us-east-1.amazonaws.com/default/edge-fn",
 }
 
 # Path where generate_images.py left the test images

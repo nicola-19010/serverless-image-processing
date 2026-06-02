@@ -8,8 +8,8 @@
   "variable": [
     {
       "key": "resize_url",
-      "value": "http://127.0.0.1:5000/resize",
-      "description": "Defaults to local mock server. For AWS testing, replace with Nico's API Gateway URL."
+      "value": "https://95tj967lqi.execute-api.us-east-1.amazonaws.com/default/resize-fn",
+      "description": "Nico's resize Lambda on AWS"
     },
     {
       "key": "grayscale_url",
