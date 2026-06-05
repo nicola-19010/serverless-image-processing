@@ -33,7 +33,7 @@ from locust import HttpUser, task, between, events
 # -----------------------------------------------------------------------------
 ENDPOINTS = {
     "resize":    "https://95tj967lqi.execute-api.us-east-1.amazonaws.com/default/resize-fn",
-    "grayscale": "https://REPLACE_ME.execute-api.us-east-1.amazonaws.com/default/grayscale-fn",
+"grayscale": "https://1pm7a4niw4.execute-api.us-east-1.amazonaws.com/default/grayscale-fn",
     "edge":      "https://5sgtof2x3m.execute-api.us-east-1.amazonaws.com/default/edge-fn",
 }
 
