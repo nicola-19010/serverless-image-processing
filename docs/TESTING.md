@@ -70,12 +70,12 @@ Click **Start swarm**. Watch the request rate and response time. If it works, st
 ### Step 3 — Run the full scenario battery
 
 The matrix is:
-- 5 concurrency levels: **1, 10, 50, 100, 200 users**
+- 4 concurrency levels: **1, 10, 50, 100 users**
 - 3 image sizes: **small, medium, large**
 - 3 operations: **resize, grayscale, edge**
 - 2 repetitions
 
-That's 90 runs × 5 minutes each ≈ 7.5 hours total. You don't need to be present — the batch script orchestrates everything.
+That's 72 runs × 2 minutes each ≈ 2.4–3 hours total.
 
 ```cmd
 cd load-tests
@@ -118,7 +118,7 @@ Downloads metrics for the 3 Lambdas to `results\cloudwatch_<lambda>.csv`.
 
 ## Tips
 
-- **Be respectful with the load**: 200 users for 5 minutes is plenty. Don't push higher unless you really want to stress-test. The Learner Lab may throttle you.
+- **Keep the load bounded**: the script is configured for 72 runs at 2 min each. Increasing run time or adding back 200 users will exceed Vocareum credit limits and freeze the session mid-run.
 - **Don't run multiple scenarios in parallel**: they'll interfere with each other.
 - **Watch the credit counter** in Vocareum during testing. If it drops fast, stop and investigate.
 - **End Lab when done**. Always.

@@ -1,14 +1,15 @@
 @echo off
 REM ==========================================================================
-REM run_scenarios.bat — orchestrator for the 90-scenario load test battery
+REM run_scenarios.bat — orchestrator for the 72-scenario load test battery
 REM
 REM Runs Locust headless for every combination of:
 REM   - operation: resize, grayscale, edge
 REM   - image_size: small, medium, large
-REM   - users: 1, 10, 50, 100, 200
+REM   - users: 1, 10, 50, 100  (200 removed to stay within Learner Lab credit limits)
 REM   - repetition: 2
 REM
-REM Total: 3 x 3 x 5 x 2 = 90 runs, 5 minutes each ≈ 7.5 hours.
+REM Total: 3 x 3 x 4 x 2 = 72 runs, 2 minutes each ≈ 2.4-3 hours.
+REM (Original config was 90 runs x 5 min = 7.5 h, ~$57/person — exceeds Vocareum $50 limit)
 REM
 REM Output CSVs land in results\ with names like:
 REM   results\grayscale_medium_50u_rep1_stats.csv
@@ -28,7 +29,8 @@ REM Make sure results folder exists
 if not exist results mkdir results
 
 REM Run duration per scenario (Locust accepts e.g. "5m", "3m", "30s")
-set RUN_TIME=5m
+REM Reduced from 5m to 2m — enough samples for reliable stats, stays within credit budget
+set RUN_TIME=2m
 
 REM Spawn rate (users/sec ramp-up)
 set SPAWN_RATE=10
@@ -42,8 +44,8 @@ set OPERATIONS=resize grayscale edge
 REM Image sizes
 set SIZES=small medium large
 
-REM Concurrency levels
-set USERS=1 10 50 100 200
+REM Concurrency levels (200 removed — too costly on Learner Lab)
+set USERS=1 10 50 100
 
 REM Repetitions
 set REPS=1 2
