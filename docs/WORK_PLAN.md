@@ -126,11 +126,11 @@ See `DEPLOY.md` for the full step-by-step. Short version:
 See `TESTING.md` for the full method. Summary:
 
 The experimental matrix is:
-- **5 concurrency levels:** 1, 10, 50, 100, 200 users
+- **4 concurrency levels:** 1, 10, 50, 100 users
 - **3 image sizes:** small, medium, large
 - **3 operations:** resize, grayscale, edge
 - **2 repetitions per scenario** (for variance estimation)
-- **Total: 5 × 3 × 3 × 2 = 90 runs × 5 minutes = ~7.5 hours of testing**
+- **Total: 4 × 3 × 3 × 2 = 72 runs × 2 minutes = ~2.4–3 hours of testing**
 
 Plus an isolated cold-start test (~10 runs per Lambda with 20 min delay between them).
 

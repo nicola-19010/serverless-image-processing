@@ -30,7 +30,7 @@ If a section errors out, it usually means the matching CSV is missing or has few
 
 ## Step 3 — Charts you should end up with
 
-1. **Response time (p95) vs concurrent users** — one line per operation, X = users (1, 10, 50, 100, 200), Y = ms.
+1. **Response time (p95) vs concurrent users** — one line per operation, X = users (1, 10, 50, 100), Y = ms.
 2. **Throughput (req/s) vs concurrent users** — same axes.
 3. **Error rate vs concurrent users** — same axes, Y = percentage.
 4. **Cold start distribution** — histogram of Init Duration per Lambda.

@@ -27,7 +27,7 @@ local-tests/outputs/*.jpg
 local-tests/outputs/*.png
 
 # Load test results
-load-tests/results/*.csv
+#load-tests/results/*.csv
 
 # Notebook checkpoints
 .ipynb_checkpoints/
