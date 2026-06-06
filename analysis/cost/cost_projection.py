@@ -2,34 +2,68 @@
 6-month cost projection: AWS Lambda vs EC2 t3.small.
 
 The script:
-  1. Defines pricing constants for both architectures (us-east-1, on-demand).
-  2. Assumes a Lambda function configured with 512 MB and 0.5 s average duration.
-     Adjust these to match the values you actually measured in your Locust runs.
+  1. Reads the measured Duration from CloudWatch (if available) — otherwise
+     falls back to a default estimate.
+  2. Defines pricing constants for both architectures (us-east-1, on-demand).
   3. Computes the 6-month cost for monthly image volumes from 10k to 100M.
   4. Solves for the break-even point where Lambda cost equals EC2 cost.
   5. Plots both curves on a log-scale X axis and saves charts/cost_breakeven.png.
 
-Usage:
-    cd analysis
-    python cost_projection.py
+Usage (from project root):
+    python analysis/cost/cost_projection.py
 """
 
 import csv
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 
-HERE = Path(__file__).parent
+HERE = Path(__file__).resolve().parent
+PROJECT_ROOT = HERE.parent.parent
+CW_DIR = PROJECT_ROOT / "load-tests" / "results" / "cloudwatch"
 CHARTS_DIR = HERE / "charts"
 CHARTS_DIR.mkdir(exist_ok=True)
 
 # -----------------------------------------------------------------------------
-# Inputs — adjust these from your measurements
+# Inputs
 # -----------------------------------------------------------------------------
-AVG_DURATION_S = 0.5                     # seconds per Lambda invocation
+DEFAULT_DURATION_S = 0.5                 # fallback if no CloudWatch data
 LAMBDA_MEMORY_MB = 512                   # memory configured on the Lambda
 MONTHS = 6                               # projection horizon
+OPERATIONS = ["resize", "grayscale", "edge"]
+
+
+def measured_duration_seconds():
+    """
+    Read CloudWatch Duration CSVs (if present) and return the average duration
+    in seconds across all 3 Lambdas. Falls back to DEFAULT_DURATION_S.
+    """
+    values = []
+    for op in OPERATIONS:
+        path = CW_DIR / f"{op}_duration.csv"
+        if not path.exists():
+            continue
+        try:
+            df = pd.read_csv(path)
+            cols = list(df.columns)
+            if len(cols) >= 2:
+                v = pd.to_numeric(df[cols[1]], errors="coerce").dropna()
+                if not v.empty:
+                    values.append(v.mean())
+        except Exception:
+            pass
+    if values:
+        avg_ms = sum(values) / len(values)
+        print(f"Using measured average Duration from CloudWatch: {avg_ms:.1f} ms "
+              f"(across {len(values)} Lambda(s)).")
+        return avg_ms / 1000.0
+    print(f"No CloudWatch Duration data found. Using default: {DEFAULT_DURATION_S} s.")
+    return DEFAULT_DURATION_S
+
+
+AVG_DURATION_S = measured_duration_seconds()
 
 # -----------------------------------------------------------------------------
 # AWS Lambda pricing (us-east-1, x86, on-demand) — May 2026 list prices

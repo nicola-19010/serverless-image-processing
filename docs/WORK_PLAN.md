@@ -149,36 +149,76 @@ That script orchestrates the 72 runs. CSVs land in `load-tests\results\`.
 
 ## Phase 7 — Data analysis
 
-1. Open `analysis\analyze.ipynb` in Jupyter:
+The analysis is split into **3 data-source tiers + 1 cost tier**. See
+`analysis/README.md` for the rationale (TL;DR: Locust gives client-side data,
+CloudWatch gives the server-side metrics the professor explicitly required,
+and the cross-reference compares them).
+
+### Phase 7A — Locust analysis (client-side, already done in our case)
 
 ```cmd
 .venv\Scripts\activate
-jupyter notebook
+jupyter notebook analysis\locust\analyze_locust.ipynb
 ```
 
-2. The notebook has cells for each chart we need to produce. Run them top to bottom.
-3. Charts to produce:
-   - p95 response time vs concurrent users (one curve per operation)
-   - Throughput (req/s) vs concurrent users
-   - Error rate vs load
-   - Cold start distribution (histogram) — *optional, only if cold-start test was run*
-   - Duration vs image size
-   - Concurrent Lambda executions over time (from CloudWatch)
+Generates in `analysis/locust/charts/`:
+- p95 response time vs concurrent users
+- Throughput (req/s) vs concurrent users
+- Error rate vs load
+- Response time vs image size
 
-**Deliverable:** all charts saved as PNG in `analysis\charts\`.
+### Phase 7B — CloudWatch analysis (server-side, REQUIRED by the prof)
+
+**First**, download the metric CSVs from the AWS console. See
+`load-tests/results/cloudwatch/README.md` for the step-by-step.
+
+**Then** run:
+
+```cmd
+python analysis\cloudwatch\analyze_cloudwatch.py
+```
+
+Generates in `analysis/cloudwatch/charts/`:
+- Concurrent executions over time *(required, prof cites it textually)*
+- Server-side Duration over time + distribution *(required)*
+- Invocations rate over time *(required)*
+- Errors over time
+- Summary table (avg / p95 / max Duration, max concurrency, total errors)
+
+### Phase 7C — Cross-reference Locust vs CloudWatch
+
+```cmd
+python analysis\cross_reference\compare_locust_vs_cloudwatch.py
+```
+
+For each scenario, computes `overhead = Locust_p95 - CloudWatch_Duration_p95`,
+which approximates the network + API Gateway + cold-start overhead.
+
+Generates in `analysis/cross_reference/charts/`:
+- Side-by-side p95 chart (client-side vs server-side per operation × users)
+- `overhead_table.csv` with the breakdown
+
+**Deliverable for Phase 7:** all charts under their respective
+`analysis/<source>/charts/` subfolders.
 
 ---
 
-## Phase 8 — Cost projection
+## Phase 8 — Cost projection (R4 requirement)
 
-1. Run `analysis\cost_projection.py`. The script:
-   - Reads the average duration and memory consumption you measured.
-   - Calculates 6-month cost on Lambda + API Gateway for several volume scenarios (10k, 100k, 1M, 10M images/month).
-   - Calculates the equivalent 6-month cost on EC2 t3.small running the same workload (theoretical baseline).
-   - Plots both curves and identifies the break-even point.
-2. Save the chart and the cost table.
+```cmd
+python analysis\cost\cost_projection.py
+```
 
-**Deliverable:** `analysis\charts\cost_breakeven.png` + `analysis\charts\cost_table.csv`.
+The script:
+- **Auto-detects the measured Duration** from the CloudWatch CSVs (falls back
+  to a default estimate if no CW data is available).
+- Calculates 6-month cost on Lambda + API Gateway for monthly volumes from
+  10k to 100M images.
+- Calculates the equivalent 6-month cost on EC2 t3.small (theoretical baseline).
+- Plots both curves on log-scale and marks the break-even point.
+
+**Deliverable:** `analysis/cost/charts/cost_breakeven.png` +
+`analysis/cost/charts/cost_table.csv`.
 
 ---
 
