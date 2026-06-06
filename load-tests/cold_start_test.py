@@ -40,9 +40,9 @@ ENDPOINTS = {
 # How many cold-start rounds to do per Lambda
 N_REPETITIONS = 10
 
-# Wait time between rounds (AWS keeps containers warm for 5–15 min, so 20 min
-# is a safe margin to guarantee a cold start)
-WAIT_SECONDS = 20 * 60
+# Wait time between rounds (15 min is enough for AWS to recycle warm containers,
+# and keeps total runtime ~2.5 h — fits within the 4-hour Learner Lab session)
+WAIT_SECONDS = 15 * 60
 
 # Path to a sample image (small, to make the test cheap)
 HERE = Path(__file__).parent

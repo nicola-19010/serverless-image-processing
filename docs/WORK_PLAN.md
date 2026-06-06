@@ -132,7 +132,7 @@ The experimental matrix is:
 - **2 repetitions per scenario** (for variance estimation)
 - **Total: 4 × 3 × 3 × 2 = 72 runs × 2 minutes = ~2.4–3 hours of testing**
 
-Plus an isolated cold-start test (~10 runs per Lambda with 20 min delay between them).
+*(Optional — not required by the professor)* an isolated cold-start test (~10 runs per Lambda with 20 min delay between them). Skip if you want to stay strictly within the assignment's required metrics (concurrency, invocations, duration).
 
 Edit `load-tests\locustfile.py` to use your 3 endpoints, then run:
 
@@ -141,7 +141,7 @@ cd load-tests
 run_scenarios.bat
 ```
 
-That script orchestrates the 90 runs. CSVs land in `load-tests\results\`.
+That script orchestrates the 72 runs. CSVs land in `load-tests\results\`.
 
 **Deliverable:** the `results/` folder full of CSV files, one set per scenario.
 
@@ -161,7 +161,7 @@ jupyter notebook
    - p95 response time vs concurrent users (one curve per operation)
    - Throughput (req/s) vs concurrent users
    - Error rate vs load
-   - Cold start distribution (histogram)
+   - Cold start distribution (histogram) — *optional, only if cold-start test was run*
    - Duration vs image size
    - Concurrent Lambda executions over time (from CloudWatch)
 
