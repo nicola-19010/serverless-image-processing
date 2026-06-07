@@ -1,64 +1,20 @@
 """
 CloudWatch analysis — server-side Lambda metrics.
 
-These are the metrics the professor explicitly listed in the assignment:
-  - concurrency (ConcurrentExecutions)
-  - number of invocations (Invocations)
-  - duration (Duration — actual server-side processing time)
-  - number of active Lambda instances as function of workload intensity
+Handles the AWS Console export format which starts with 5 metadata rows
+(Id, StatusCode, Messages, Full label, Label) before the actual data, AND
+also handles simple 2-column CSVs.
 
-We obtain them from CloudWatch (server-side), not Locust (client-side).
-
-How to use
-----------
-1. Download the CSVs from AWS CloudWatch Console. For each Lambda function
-   (resize-fn, grayscale-fn, edge-fn) and each metric, click the "..." menu
-   on the metric graph and choose "Download as CSV". You should get these
-   files in load-tests/results/cloudwatch/:
-
-       resize_invocations.csv
-       resize_duration.csv
-       resize_concurrent.csv
-       resize_errors.csv
-       grayscale_invocations.csv
-       grayscale_duration.csv
-       grayscale_concurrent.csv
-       grayscale_errors.csv
-       edge_invocations.csv
-       edge_duration.csv
-       edge_concurrent.csv
-       edge_errors.csv
-
-   See load-tests/results/cloudwatch/README.md for detailed instructions on
-   the CloudWatch console.
-
-2. Run this script from the project root:
-
-       python analysis/cloudwatch/analyze_cloudwatch.py
-
-   Charts and tables land in analysis/cloudwatch/charts/.
-
-What CloudWatch CSVs look like
-------------------------------
-The console exports a 2-column CSV per metric:
-    Label,Average
-    2026-06-05T21:00:00.000Z,12.34
-    2026-06-05T21:01:00.000Z,15.67
-    ...
-
-(Sometimes the value column is named "Sum", "Maximum", or "p95" depending on
-the statistic selected. The script auto-detects.)
+Metrics:
+  Invocations (Sum) | Duration (Min/Avg/Max) | ConcurrentExecutions (Max)
+  Errors (Sum) + Success rate | Throttles (Sum)
 """
 
-import re
 from pathlib import Path
 
 import pandas as pd
 import matplotlib.pyplot as plt
 
-# ---------------------------------------------------------------------------
-# Paths (resolved relative to this script so it works regardless of cwd)
-# ---------------------------------------------------------------------------
 HERE = Path(__file__).resolve().parent
 PROJECT_ROOT = HERE.parent.parent
 CW_DIR = PROJECT_ROOT / "load-tests" / "results" / "cloudwatch"
@@ -66,46 +22,81 @@ CHARTS_DIR = HERE / "charts"
 CHARTS_DIR.mkdir(exist_ok=True)
 
 OPERATIONS = ["resize", "grayscale", "edge"]
-METRICS = ["invocations", "duration", "concurrent", "errors"]
-
-# Pretty palette consistent with Locust charts
+METRICS = ["invocations", "duration", "concurrent", "errors", "throttles"]
 PALETTE = {"resize": "#1f77b4", "grayscale": "#2ca02c", "edge": "#d62728"}
 
+STAT_KEYWORDS = {
+    "min": ["mínimo", "minimo", "min", "minimum"],
+    "avg": ["promedio", "media", "average", "avg", "mean"],
+    "max": ["máximo", "maximo", "max", "maximum"],
+    "sum": ["suma", "sum", "total"],
+    "rate": ["tasa", "rate", "%", "exito", "éxito", "success"],
+    "errors": ["errores", "errors", "error", "limitaciones", "throttle"],
+}
 
-# ---------------------------------------------------------------------------
-# CSV loader — tolerant to AWS console export variations
-# ---------------------------------------------------------------------------
-def load_metric(operation: str, metric: str) -> pd.DataFrame | None:
+
+def _classify_column(col_name):
+    name = str(col_name).lower()
+    if any(kw in name for kw in STAT_KEYWORDS["rate"]):
+        return "rate"
+    for stat in ["min", "avg", "max", "sum", "errors"]:
+        if any(kw in name for kw in STAT_KEYWORDS[stat]):
+            return stat
+    return "other"
+
+
+def _find_header_row(path):
     """
-    Read a CloudWatch CSV. Returns a DataFrame with columns [timestamp, value]
-    or None if the file is missing.
+    AWS Console export starts with 5 metadata rows.  Detect the 'Label' row
+    (which has the human-readable stat names) and return its 0-indexed row
+    number.  Returns 0 for simple 2-column CSVs where data starts immediately.
     """
+    with open(path, encoding="utf-8") as f:
+        for i, line in enumerate(f):
+            if i > 10:
+                break
+            first_cell = line.split(",", 1)[0].strip().strip('"').lower()
+            if first_cell == "label":
+                return i
+    return 0
+
+
+def load_metric(operation, metric):
     path = CW_DIR / f"{operation}_{metric}.csv"
     if not path.exists():
         return None
-
-    df = pd.read_csv(path)
-
-    # First column = timestamp, second column = metric value
-    # AWS calls them inconsistently; just trust the position
-    cols = list(df.columns)
-    if len(cols) < 2:
-        print(f"  WARN: {path.name} has fewer than 2 columns, skipping.")
+    header_row = _find_header_row(path)
+    raw = pd.read_csv(path, header=header_row)
+    if raw.shape[1] < 2:
         return None
+    out = pd.DataFrame()
+    # First column = timestamp
+    out["timestamp"] = pd.to_datetime(raw.iloc[:, 0], errors="coerce")
+    seen = set()
+    for col in raw.columns[1:]:
+        kind = _classify_column(col)
+        if kind == "other":
+            out[col] = pd.to_numeric(raw[col], errors="coerce")
+            continue
+        if kind in seen:
+            continue
+        seen.add(kind)
+        out[kind] = pd.to_numeric(raw[col], errors="coerce")
+    out = out.dropna(subset=["timestamp"]).sort_values("timestamp").reset_index(drop=True)
+    return out
 
-    df = df.rename(columns={cols[0]: "timestamp", cols[1]: "value"})
-    df = df[["timestamp", "value"]].copy()
 
-    # Parse timestamp (handles ISO 8601 with Z and most other AWS formats)
-    df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True, errors="coerce")
-    df = df.dropna(subset=["timestamp"]).sort_values("timestamp").reset_index(drop=True)
-    df["value"] = pd.to_numeric(df["value"], errors="coerce")
-
-    return df
+def primary_column(df, prefer):
+    for stat in prefer:
+        if stat in df.columns and df[stat].notna().any():
+            return stat
+    for c in df.columns:
+        if c != "timestamp" and df[c].notna().any():
+            return c
+    return None
 
 
 def check_files_present():
-    """Print which CSVs were found / missing."""
     print("=" * 60)
     print("Checking CloudWatch CSV files")
     print("=" * 60)
@@ -120,39 +111,24 @@ def check_files_present():
                 print(f"  [missing] {path.name}")
                 missing += 1
     print(f"\n{found} of {found + missing} files present.\n")
-    if missing > 0:
-        print("Place the missing CSVs in load-tests/results/cloudwatch/ and re-run.")
-        print("See load-tests/results/cloudwatch/README.md for instructions.")
     return found, missing
 
 
-# ---------------------------------------------------------------------------
-# Plotting helpers
-# ---------------------------------------------------------------------------
-def plot_metric_over_time(metric: str, title: str, ylabel: str, fname: str,
-                          aggregate: str = "raw"):
-    """
-    Plot a single metric (over time) for the 3 Lambdas overlaid.
-    `aggregate`:
-        "raw"       — plot the value column directly
-        "cumsum"    — running sum (for Invocations)
-    """
+def plot_simple_over_time(metric, preferred_stats, title, ylabel, fname):
     fig, ax = plt.subplots(figsize=(11, 5))
     plotted = False
     for op in OPERATIONS:
         df = load_metric(op, metric)
         if df is None or df.empty:
             continue
-        y = df["value"].cumsum() if aggregate == "cumsum" else df["value"]
-        ax.plot(df["timestamp"], y,
-                label=op, color=PALETTE[op], linewidth=1.8)
+        col = primary_column(df, preferred_stats)
+        if col is None:
+            continue
+        ax.plot(df["timestamp"], df[col], label=op, color=PALETTE[op], linewidth=1.8)
         plotted = True
-
     if not plotted:
-        print(f"  skip: no data for {metric}")
         plt.close(fig)
         return
-
     ax.set_xlabel("Time")
     ax.set_ylabel(ylabel)
     ax.set_title(title)
@@ -166,27 +142,60 @@ def plot_metric_over_time(metric: str, title: str, ylabel: str, fname: str,
     print(f"  saved: {out.name}")
 
 
+def plot_duration_with_band():
+    fig, ax = plt.subplots(figsize=(11, 5.5))
+    plotted = False
+    for op in OPERATIONS:
+        df = load_metric(op, "duration")
+        if df is None or df.empty:
+            continue
+        avg_col = primary_column(df, ["avg", "sum", "min", "max"])
+        if avg_col is None:
+            continue
+        if "min" in df.columns and "max" in df.columns:
+            ax.fill_between(df["timestamp"], df["min"], df["max"],
+                            color=PALETTE[op], alpha=0.18,
+                            label=f"{op} min-max")
+        ax.plot(df["timestamp"], df[avg_col], color=PALETTE[op], linewidth=1.8,
+                label=f"{op} {avg_col}")
+        plotted = True
+    if not plotted:
+        plt.close(fig)
+        return
+    ax.set_xlabel("Time")
+    ax.set_ylabel("Duration (ms)")
+    ax.set_title("Server-side Lambda Duration over time (avg line, min-max band)")
+    ax.legend(fontsize=8)
+    ax.grid(alpha=0.3)
+    fig.autofmt_xdate()
+    plt.tight_layout()
+    out = CHARTS_DIR / "duration_over_time.png"
+    plt.savefig(out, dpi=150)
+    plt.close(fig)
+    print(f"  saved: {out.name}")
+
+
 def plot_duration_distribution():
-    """Histogram-style box plot of Duration per Lambda — server-side."""
     fig, ax = plt.subplots(figsize=(8, 5))
     data, labels = [], []
     for op in OPERATIONS:
         df = load_metric(op, "duration")
         if df is None or df.empty:
             continue
-        data.append(df["value"].dropna())
+        col = primary_column(df, ["avg", "sum", "max", "min"])
+        if col is None:
+            continue
+        data.append(df[col].dropna())
         labels.append(op)
     if not data:
-        print("  skip: no duration data")
         plt.close(fig)
         return
-    bp = ax.boxplot(data, labels=labels, showfliers=False,
-                    patch_artist=True)
+    bp = ax.boxplot(data, labels=labels, showfliers=False, patch_artist=True)
     for patch, op in zip(bp["boxes"], labels):
         patch.set_facecolor(PALETTE[op])
         patch.set_alpha(0.6)
     ax.set_ylabel("Duration (ms)")
-    ax.set_title("Server-side Lambda Duration distribution (CloudWatch)")
+    ax.set_title("Server-side Lambda Duration distribution")
     ax.grid(alpha=0.3, axis="y")
     plt.tight_layout()
     out = CHARTS_DIR / "duration_distribution.png"
@@ -195,89 +204,136 @@ def plot_duration_distribution():
     print(f"  saved: {out.name}")
 
 
+def plot_errors_with_success_rate():
+    fig, ax = plt.subplots(figsize=(11, 5.5))
+    ax2 = ax.twinx()
+    plotted = False
+    has_rate = False
+    for op in OPERATIONS:
+        df = load_metric(op, "errors")
+        if df is None or df.empty:
+            continue
+        err_col = primary_column(df, ["sum", "errors", "max"])
+        if err_col is not None:
+            ax.plot(df["timestamp"], df[err_col], color=PALETTE[op], linewidth=1.8,
+                    label=f"{op} errors")
+            plotted = True
+        if "rate" in df.columns and df["rate"].notna().any():
+            ax2.plot(df["timestamp"], df["rate"], color=PALETTE[op], linewidth=1.2,
+                     linestyle="--", alpha=0.7, label=f"{op} success rate")
+            has_rate = True
+    if not plotted:
+        plt.close(fig)
+        return
+    ax.set_xlabel("Time")
+    ax.set_ylabel("Errors (count)")
+    if has_rate:
+        ax2.set_ylabel("Success rate (%)")
+        ax2.set_ylim(0, 105)
+    ax.set_title("Lambda errors and success rate over time")
+    lines, labels = ax.get_legend_handles_labels()
+    if has_rate:
+        l2, lab2 = ax2.get_legend_handles_labels()
+        lines += l2
+        labels += lab2
+    ax.legend(lines, labels, fontsize=8)
+    ax.grid(alpha=0.3)
+    fig.autofmt_xdate()
+    plt.tight_layout()
+    out = CHARTS_DIR / "errors_over_time.png"
+    plt.savefig(out, dpi=150)
+    plt.close(fig)
+    print(f"  saved: {out.name}")
+
+
 def summary_table():
-    """One-row-per-Lambda summary that goes into the report."""
     rows = []
     for op in OPERATIONS:
         row = {"lambda": f"{op}-fn"}
-        # Invocations: sum
         df = load_metric(op, "invocations")
-        row["total_invocations"] = (
-            int(df["value"].sum()) if df is not None else None
-        )
-        # Duration: avg / p95 (approx via quantile of the per-minute samples)
+        if df is not None and not df.empty:
+            col = primary_column(df, ["sum", "max"])
+            row["total_invocations"] = int(df[col].sum()) if col else None
+        else:
+            row["total_invocations"] = None
         df = load_metric(op, "duration")
         if df is not None and not df.empty:
-            row["avg_duration_ms"] = round(df["value"].mean(), 1)
-            row["p95_duration_ms"] = round(df["value"].quantile(0.95), 1)
-            row["max_duration_ms"] = round(df["value"].max(), 1)
+            avg_col = primary_column(df, ["avg"])
+            row["avg_duration_ms"] = round(df[avg_col].mean(), 1) if avg_col else None
+            row["p95_duration_ms"] = round(df[avg_col].quantile(0.95), 1) if avg_col else None
+            row["min_duration_ms"] = round(df["min"].min(), 1) if "min" in df.columns else None
+            if "max" in df.columns:
+                row["max_duration_ms"] = round(df["max"].max(), 1)
+            elif avg_col:
+                row["max_duration_ms"] = round(df[avg_col].max(), 1)
+            else:
+                row["max_duration_ms"] = None
         else:
-            row.update({"avg_duration_ms": None,
-                        "p95_duration_ms": None,
-                        "max_duration_ms": None})
-        # Concurrent executions: max
+            for k in ("avg_duration_ms", "p95_duration_ms", "min_duration_ms", "max_duration_ms"):
+                row[k] = None
         df = load_metric(op, "concurrent")
-        row["max_concurrent_executions"] = (
-            int(df["value"].max()) if df is not None and not df.empty else None
-        )
-        # Errors: sum
+        if df is not None and not df.empty:
+            col = primary_column(df, ["max", "avg"])
+            row["max_concurrent_executions"] = int(df[col].max()) if col else None
+        else:
+            row["max_concurrent_executions"] = None
         df = load_metric(op, "errors")
-        row["total_errors"] = (
-            int(df["value"].sum()) if df is not None and not df.empty else 0
-        )
+        if df is not None and not df.empty:
+            err_col = primary_column(df, ["sum", "errors", "max"])
+            row["total_errors"] = int(df[err_col].sum()) if err_col else 0
+            if "rate" in df.columns and df["rate"].notna().any():
+                row["min_success_rate_pct"] = round(df["rate"].min(), 2)
+            else:
+                row["min_success_rate_pct"] = None
+        else:
+            row["total_errors"] = 0
+            row["min_success_rate_pct"] = None
+        df = load_metric(op, "throttles")
+        if df is not None and not df.empty:
+            col = primary_column(df, ["sum", "max"])
+            row["total_throttles"] = int(df[col].sum()) if col else 0
+        else:
+            row["total_throttles"] = 0
         rows.append(row)
-
     df = pd.DataFrame(rows)
     out = CHARTS_DIR / "summary_table.csv"
     df.to_csv(out, index=False)
     print(f"  saved: {out.name}")
-    print("\n--- Summary (server-side, CloudWatch) ---")
+    print()
+    print("--- Summary (server-side, CloudWatch) ---")
     print(df.to_string(index=False))
     print()
 
 
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
 def main():
     found, missing = check_files_present()
     if found == 0:
         print("No CloudWatch CSVs found. Nothing to do.")
         return
-
     print("Generating charts...")
-
-    plot_metric_over_time(
-        "concurrent",
-        title="Concurrent Lambda executions over time (CloudWatch)",
-        ylabel="Concurrent executions (max)",
-        fname="concurrent_executions_over_time.png",
+    plot_simple_over_time(
+        "concurrent", ["max", "avg"],
+        "Concurrent Lambda executions over time",
+        "Concurrent executions (max)",
+        "concurrent_executions_over_time.png",
     )
-
-    plot_metric_over_time(
-        "duration",
-        title="Server-side Lambda Duration over time (CloudWatch)",
-        ylabel="Duration (ms)",
-        fname="duration_over_time.png",
+    plot_duration_with_band()
+    plot_simple_over_time(
+        "invocations", ["sum", "max"],
+        "Lambda invocations rate over time",
+        "Invocations per minute",
+        "invocations_over_time.png",
     )
-
-    plot_metric_over_time(
-        "invocations",
-        title="Lambda invocations rate over time (CloudWatch)",
-        ylabel="Invocations per period",
-        fname="invocations_over_time.png",
+    plot_errors_with_success_rate()
+    plot_simple_over_time(
+        "throttles", ["sum", "max"],
+        "Lambda throttled invocations over time",
+        "Throttles per minute",
+        "throttles_over_time.png",
     )
-
-    plot_metric_over_time(
-        "errors",
-        title="Lambda errors over time (CloudWatch)",
-        ylabel="Errors per period",
-        fname="errors_over_time.png",
-    )
-
     plot_duration_distribution()
     summary_table()
-    print("\nDone. Charts in analysis/cloudwatch/charts/")
+    print("Done. Charts in analysis/cloudwatch/charts/")
 
 
 if __name__ == "__main__":

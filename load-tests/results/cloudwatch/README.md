@@ -5,23 +5,33 @@ functions. They are the **server-side** counterpart to the Locust CSVs in
 `../` (the parent folder), and they cover the metrics the professor cites
 literally in the assignment: concurrency, invocations, duration.
 
-## Files expected (12 CSVs total — 4 per Lambda × 3 Lambdas)
+## Files expected (15 CSVs total — 5 per Lambda × 3 Lambdas)
 
 ```
 cloudwatch/
-├── resize_invocations.csv
-├── resize_duration.csv
-├── resize_concurrent.csv
-├── resize_errors.csv
+├── resize_invocations.csv      (Sum)
+├── resize_duration.csv         (Min + Avg + Max — keep all 3)
+├── resize_concurrent.csv       (Max)
+├── resize_errors.csv           (errors + successRate — keep both)
+├── resize_throttles.csv        (Sum — shows when concurrency cap was hit)
 ├── grayscale_invocations.csv
 ├── grayscale_duration.csv
 ├── grayscale_concurrent.csv
 ├── grayscale_errors.csv
+├── grayscale_throttles.csv
 ├── edge_invocations.csv
 ├── edge_duration.csv
 ├── edge_concurrent.csv
-└── edge_errors.csv
+├── edge_errors.csv
+└── edge_throttles.csv
 ```
+
+**Why Throttles matters** — in the AWS Academy Learner Lab the Lambda
+concurrency limit is much lower than a real account (often ~10). When the
+load test pushed 100 concurrent users, Lambda rejected the excess by
+throttling. Plotting Throttles lets us argue exactly where the system
+saturated — which is the heart of "performance and scalability evaluation"
+in the assignment.
 
 ## How to download from the AWS Console
 
