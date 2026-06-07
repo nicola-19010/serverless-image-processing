@@ -1,4 +1,4 @@
 lambda,total_invocations,avg_duration_ms,p95_duration_ms,min_duration_ms,max_duration_ms,max_concurrent_executions,total_errors,min_success_rate_pct,total_throttles
-resize-fn,17342.0,271.1,615.8,11.2,856.4,11.0,0,100.0,0
-grayscale-fn,,,,,,,0,,0
-edge-fn,17409.0,438.0,1053.8,8.5,1431.3,9.0,0,100.0,0
+resize-fn,17342,271.1,615.8,11.2,856.4,11,0,100.0,0
+grayscale-fn,17521,142.8,432.3,1.6,740.3,10,0,100.0,0
+edge-fn,17409,438.0,1053.8,8.5,1431.3,9,0,100.0,0
