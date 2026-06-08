@@ -1,87 +1,87 @@
-# Cómo revisamos el draft del informe
+# How we review the report draft
 
-Hay un draft del informe listo en el repo:
+There's a draft of the final report in the repo:
 
-- `Pacheco_Nicolas_Report_DRAFT.pdf` — para leer
-- `Pacheco_Nicolas_Report_DRAFT.docx` — para editar después
+- `Pacheco_Nicolas_Report_DRAFT.pdf` — to read
+- `Pacheco_Nicolas_Report_DRAFT.docx` — to edit later
 
-El plan es simple: **subir el doc a Google Docs, dejar comentarios ahí, resolverlos por WhatsApp**.
-
----
-
-## Paso 1 — Subir a Google Docs (5 min)
-
-Cualquiera de los 3:
-
-1. Abre [docs.google.com](https://docs.google.com)
-2. **File → Open → Upload** y sube `Pacheco_Nicolas_Report_DRAFT.docx`
-3. Google lo abre como Google Doc editable
-4. **Share** → "Anyone with the link → Editor" → copia el link
-5. Pega el link en el grupo de WhatsApp
+The plan is simple: **upload the doc to Google Docs, leave comments there, resolve them on WhatsApp**.
 
 ---
 
-## Paso 2 — Lectura + comentarios (30-45 min cada uno, en paralelo)
+## Step 1 — Upload to Google Docs (5 min)
 
-Cada uno abre el link, lo lee completo y deja **comentarios** (no edita directo todavía). Para comentar:
+Any one of us:
 
-- Seleccionas el texto → click derecho → **Comment** (o `Ctrl + Alt + M`)
-- Escribes la observación
-
-**Cosas a revisar por cada uno:**
-
-- [ ] Tu sección personal en **2.1 (algoritmos)** — ¿la descripción de tu Lambda es correcta?
-- [ ] Tu fila en **Individual contributions** — ¿refleja lo que hiciste? agregar/quitar lo que falte
-- [ ] **Datos numéricos** — si ves algún número que sabés que está mal, comentar
-- [ ] **Cualquier cosa que no se entienda** — mejor sobre-comentar que dejar pasar
-- [ ] **Tu Student ID** — escribirlo en el comentario donde aparece `[Student ID]` con tu nombre
+1. Open [docs.google.com](https://docs.google.com)
+2. **File → Open → Upload** and upload `Pacheco_Nicolas_Report_DRAFT.docx`
+3. Google opens it as an editable Google Doc
+4. **Share** → "Anyone with the link → Editor" → copy the link
+5. Drop the link in the WhatsApp group
 
 ---
 
-## Paso 3 — Sincronizar por WhatsApp (~30 min, los 3 juntos)
+## Step 2 — Read + comment (30–45 min each, in parallel)
 
-Cuando los 3 terminaron de comentar, una llamada o chat largo en el grupo para:
+Each of us opens the link, reads the whole doc and leaves **comments** (not direct edits yet). To comment:
 
-1. Revisar los comentarios uno por uno
-2. Decidir: **arreglar / ignorar / discutir**
-3. Definir **quién manda el informe** — ese va a tener su apellido en el filename
-4. Compartir los **3 Student IDs**
+- Select the text → right-click → **Comment** (or `Ctrl + Alt + M`)
+- Write the observation
 
----
+**Things to check, each of us:**
 
-## Paso 4 — Aplicar cambios (1-2 h, uno solo)
-
-El que se ofrezca aplica los cambios consensuados directamente sobre el Google Doc:
-
-- Resolver cada comentario (click en ✓ una vez aplicado)
-- Reemplazar los 3 `[Student ID]` con los IDs reales
-- Reemplazar `[Surname]` con el apellido de Mathias
-- Si la descripción de algún algoritmo cambió, actualizarla
+- [ ] Your personal section in **2.1 (algorithms)** — is your Lambda's description correct?
+- [ ] Your row in **Individual contributions** — does it reflect what you actually did? add/remove as needed
+- [ ] **Numbers** — if you spot a number you know is wrong, comment it
+- [ ] **Anything you don't understand** — better over-comment than let it slip
+- [ ] **Your Student ID** — leave it as a comment next to the `[Student ID]` placeholder by your name
 
 ---
 
-## Paso 5 — Exportar a PDF y mandar (15 min)
+## Step 3 — Sync on WhatsApp (~30 min, the 3 of us together)
 
-Sobre el Google Doc final:
+Once all 3 are done commenting, a quick call or long chat in the group to:
+
+1. Go through the comments one by one
+2. Decide: **fix / ignore / discuss further**
+3. Decide **who submits** — their surname goes in the filename
+4. Share the 3 **Student IDs**
+
+---
+
+## Step 4 — Apply changes (1–2 h, just one of us)
+
+Whoever has time applies the agreed changes directly on the Google Doc:
+
+- Resolve each comment (click ✓ once applied)
+- Replace the 3 `[Student ID]` placeholders with the real IDs
+- Replace `[Surname]` with Mathias' surname
+- If any algorithm description needs to change, update it
+
+---
+
+## Step 5 — Export to PDF and submit (15 min)
+
+On the final Google Doc:
 
 1. **File → Download → PDF Document (.pdf)**
-2. Renombrar al formato exacto: **`APELLIDO_NOMBRE_STUDENTID_Report.pdf`**
-   - Ejemplo: `Pacheco_Nicolas_2123456_Report.pdf` (si manda Nico)
-3. Subir al sistema de submission del curso antes de **23:59 del 8 de junio**
+2. Rename to the exact required format: **`SURNAME_NAME_STUDENTID_Report.pdf`**
+   - Example: `Pacheco_Nicolas_2123456_Report.pdf` (if Nico submits)
+3. Upload to the course submission system before **23:59 on June 8**
 
 ---
 
-## Cosas a NO olvidar
+## Things NOT to forget
 
-- **Verificar que las imágenes se vean bien en el PDF exportado** — Google Docs a veces las re-comprime
-- **Verificar el filename exacto** que pide el prof (mayúsculas/minúsculas, separadores)
-- **Una sola persona sube**, no los 3
-- Mientras tanto, si alguien quiere ir empezando con la presentación (~12 slides), también está en el plan
+- **Check the images render properly in the exported PDF** — Google Docs sometimes re-compresses them
+- **Double-check the exact filename format** the prof requires (caps, separators)
+- **Only one person submits**, not all three
+- Meanwhile, if someone wants to start on the presentation (~12 slides), that's also in the plan
 
 ---
 
-## Si algo falla / hay dudas técnicas
+## If something breaks / technical doubts
 
-- Los datos verificados están en `docs/FINDINGS.md`
-- La explicación de timezone está en `docs/TIMEZONES.md`
-- Si hay que regenerar algún chart, los scripts están en `analysis/`
+- The verified data is in `docs/FINDINGS.md`
+- The analysis scripts are in `analysis/`
+- If a chart needs to be regenerated, the scripts are there too
