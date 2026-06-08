@@ -2,6 +2,10 @@
 
 > Generated on 2026-06-06 from CloudWatch + Locust data of the 2026-06-05 load
 > test session. Use this as the source-of-truth when writing the final report.
+>
+> **All timestamps below and in the charts are Europe/Rome (UTC+2).** See
+> [TIMEZONES.md](TIMEZONES.md) for how the timezone normalisation works
+> across CSVs downloaded by different team members in different timezones.
 
 ---
 
@@ -55,30 +59,38 @@ The cross-reference between client-side (Locust) and server-side (CloudWatch)
 p95 response time, per operation × concurrent users:
 
 ```
-operation  users   locust_p95     cw_p95     overhead   overhead %
-     edge      1     1,660 ms      393 ms    1,267 ms      76 %
-     edge     10     4,972 ms      381 ms    4,590 ms      92 %
-     edge     50    27,618 ms      375 ms   27,243 ms      99 %
-     edge    100    46,216 ms      380 ms   45,836 ms      99 %
+operation     users   locust_p95     cw_p95     overhead   overhead %
+   resize        1     1,097 ms      271 ms       826 ms       75 %
+   resize       10     4,773 ms      274 ms     4,499 ms       94 %
+   resize       50    28,133 ms      272 ms    27,861 ms       99 %
+   resize      100    46,850 ms      270 ms    46,580 ms     99.4 %
+grayscale        1     1,323 ms      189 ms     1,134 ms       86 %
+grayscale       10     5,262 ms      178 ms     5,083 ms       97 %
+grayscale       50    31,492 ms      176 ms    31,316 ms       99 %
+grayscale      100    46,033 ms      175 ms    45,858 ms     99.6 %
+     edge        1     1,660 ms      439 ms     1,221 ms       74 %
+     edge       10     4,972 ms      446 ms     4,525 ms       91 %
+     edge       50    27,618 ms      441 ms    27,177 ms       98 %
+     edge      100    46,216 ms      441 ms    45,775 ms     99.0 %
 ```
 
-- **Server-side p95 stays flat ~380 ms regardless of load** — Lambda processes
-  each request in the same time whether there are 1 or 100 users.
-- **Client-side p95 explodes from 1.6 s to 46 s as load grows.**
+- **Server-side p95 stays effectively flat regardless of load** for all three
+  Lambdas: resize ~271 ms, grayscale ~178 ms, edge ~442 ms — variation under
+  5 % between 1 and 100 concurrent users.
+- **Client-side p95 explodes from ~1 s to ~46 s as load grows.**
 - The gap between the two = **queueing in API Gateway + the Learner Lab's
   implicit concurrency throttle**.
-- At 50–100 users, **>99% of the time the user waits has nothing to do with
-  Lambda execution**.
+- At 100 users, **>99 % of the end-to-end response time has nothing to do
+  with Lambda execution** — it is pure queueing in the upstream layers.
 
 **Chart**: `analysis/cross_reference/charts/locust_vs_cloudwatch_p95.png`
 (solid lines = client-side, dashed = server-side, the gap is the overhead).
 
 **Table**: `analysis/cross_reference/charts/overhead_table.csv`.
 
-> Note: resize-fn cross-reference did not match because the AWS Console saved
-> Nico's CSVs in UTC+2 while Mathias's were saved in UTC, so the timestamp
-> windows don't overlap with Locust's UTC timestamps. The finding is the same
-> shape — pending a one-line patch to normalise timezones.
+> Note: grayscale is the lightest operation server-side (~178 ms p95) because
+> RGB-to-luma is a single per-pixel operation, lighter than resize (which
+> requires interpolation) and edge (Sobel + smoothing).
 
 ---
 
@@ -90,18 +102,81 @@ With only Locust data we would have reported *"Lambda gets slow under load"*,
 which is **wrong**. With the CloudWatch + Locust cross-reference we can
 correctly report:
 
-> *"Lambda processes each request in constant time (~380 ms p95) regardless
-> of workload. The observed degradation in end-to-end response time under
-> load is caused by request queuing at the upstream layers, not by Lambda
-> itself. The Learner Lab caps concurrency at ~10, which is the saturation
-> point of our deployment."*
+> *"Lambda processes each request in constant time (~175–440 ms p95
+> depending on operation) regardless of workload. The observed degradation
+> in end-to-end response time under load is caused by request queuing in
+> the API Gateway / Vocareum-managed concurrency layer, not by Lambda
+> itself. Peak Lambda concurrency reached only 9–11 across the three
+> functions, well below the 1,000-concurrent default of a production AWS
+> account."*
 
 This is the kind of nuanced, evidence-based conclusion that distinguishes a
 strong report from a surface-level one.
 
 ---
 
-## CloudWatch charts produced (resize + edge, grayscale pending)
+## Verified data — refutations of the old Phase 6 hypothesis doc
+
+> A previous teammate-written analysis (`PHASE6_ANALYSIS.md`, drafted before
+> the team had CloudWatch data) made several confident claims about why the
+> system failed under load. With the CW data now in hand, **several of those
+> claims are wrong**. This section is the authoritative reference for the
+> report writers — don't repeat the Phase 6 doc's mistakes.
+
+### Claims confirmed by data
+
+| Phase 6 claim | Verification |
+|---|---|
+| `resize` uses LANCZOS interpolation | Confirmed (`lambdas/resize/lambda_function.py:62`) |
+| `edge` uses SMOOTH + FIND_EDGES filters | Confirmed (`lambdas/edge/lambda_function.py`) |
+| `grayscale` uses `.convert("L")` | Confirmed (`lambdas/grayscale/lambda_function.py`) |
+| Only 2 error types observed (HTTP 0, HTTP 408) | Confirmed: 161 HTTP 0 + 154 HTTP 408 = 315 total across 72 scenarios |
+| `resize_large_100u` is the worst case | Confirmed: 82+61 = 143 failures across the 2 reps |
+
+### Claims **refuted** by data
+
+| Phase 6 claim | Verified truth | Source |
+|---|---|---|
+| "Lambda concurrency cap is ~100 in Learner Lab" | Peak concurrent execution was **9-11** per Lambda. Whether this is a Vocareum cap or a natural ceiling (throughput × duration) we cannot disambiguate. | `analysis/cloudwatch/charts/summary_table.csv` |
+| "HTTP 408 = Lambda execution exceeded 30 s timeout" | **False.** Max Lambda Duration was 856 ms (resize), 740 ms (grayscale), 1,431 ms (edge). The 30 s Lambda timeout was **never reached**. HTTP 408 errors come from API Gateway integration timeout (~29 s) while requests waited in queue, **before reaching Lambda**. | `summary_table.csv`, all CW Duration CSVs |
+| "Large images are ~5 MB" | False. Our `large` bucket is 947 KB – 2.3 MB, mean ~1.3 MB. | `local-tests/images/large/` |
+| "Grayscale and resize outputs are ~5 MB; edge output is ~1 MB (compressed)" | **Opposite of reality.** Measured on a 1 MB input: resize output = **42 KB** (4 %), grayscale = 940 KB (89 %), edge = 1,040 KB (98 %). Resize has the **smallest** output (it shrinks to 400 px wide); edge does NOT compress dramatically. | Measured directly running each Lambda |
+| "Switching from LANCZOS to BICUBIC would fix the saturation" | Wrong fix for the wrong problem. LANCZOS is mildly slower (271 ms avg) but nowhere near the 30 s Lambda timeout. The bottleneck is queueing, not CPU. | CW max Duration 856 ms ≪ 30 s |
+| "0 cold starts observed" | **Unverifiable** from our data. We did not export the `Init Duration` metric from CloudWatch. The very low min Duration values (1.6 ms grayscale, 8.5 ms edge, 11.2 ms resize) are **not** cold-start indicators — those are fast-fail responses (e.g., 400 from a malformed test event). | Not measured |
+
+### The key insight that the Phase 6 doc missed
+
+**Two compatible perspectives on success**, which together explain the data:
+
+```
+                    ┌───────────────────────────────┐
+Locust (client) ──► │     API Gateway               │ ──► Lambda
+                    │     - Queue management        │
+                    │     - 29 s integration timeout│
+                    │     - If timeout: HTTP 408    │
+                    │     - If conn drop: HTTP 0    │
+                    └───────────────────────────────┘
+                          ↑                              ↑
+                  315 failures seen by              0 errors, 0 throttles,
+                  Locust (HTTP 0 + 408)             100 % success seen
+                                                    by CloudWatch
+```
+
+- **CloudWatch only sees what actually invoked Lambda.** Of the requests that
+  reached Lambda, 100 % succeeded.
+- **Locust counts every HTTP failure**, regardless of which layer produced it.
+- The 315 failures were rejected upstream of Lambda (queue overflow, integration
+  timeout). They never count as Lambda invocations, so CloudWatch shows 0 errors
+  while Locust shows 27 % error rate at the worst scenario.
+
+This is the most teachable observation of the project: **a Lambda function that
+never errors and never throttles can still appear "broken" to end users** if the
+upstream queueing layer rejects requests before Lambda can process them. The
+report should foreground this nuance.
+
+---
+
+## CloudWatch charts produced (all 3 Lambdas)
 
 | Chart | What it shows | File |
 |---|---|---|
@@ -169,9 +244,10 @@ strong report from a surface-level one.
 
 ## Pending work
 
-- [ ] Prajwal sends his 5 CloudWatch CSVs for grayscale-fn (`grayscale_*.csv`).
-- [ ] Apply timezone normalisation to the cross-reference script so resize
-      also matches (one-line patch — UTC+2 → UTC for Nico's CSVs).
+- [x] Prajwal sent his 5 CloudWatch CSVs for grayscale-fn (commit `1243a69`).
+- [x] Timezone normalisation: all CSVs auto-detect their offset and display
+      in Europe/Rome. See [TIMEZONES.md](TIMEZONES.md). Resize now matches
+      the cross-reference. Shared helper at `analysis/_tz_helper.py`.
 - [ ] Run `python analysis/cost/cost_projection.py` with the measured
       Duration values to refresh the 6-month break-even chart.
 - [ ] Write the final report (8–12 pages) following the structure in

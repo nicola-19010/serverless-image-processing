@@ -1,15 +1,22 @@
 """
-CloudWatch analysis — server-side Lambda metrics.
+CloudWatch analysis - server-side Lambda metrics, normalised to Europe/Rome.
 
 Handles the AWS Console export format which starts with 5 metadata rows
 (Id, StatusCode, Messages, Full label, Label) before the actual data, AND
 also handles simple 2-column CSVs.
+
+Each CSV's timezone is auto-detected by comparing its busiest minute against
+the Locust scenario midpoint for the same operation (see analysis/_tz_helper.py).
+All charts and the summary table use Europe/Rome timestamps.
 
 Metrics:
   Invocations (Sum) | Duration (Min/Avg/Max) | ConcurrentExecutions (Max)
   Errors (Sum) + Success rate | Throttles (Sum)
 """
 
+import re
+import sys
+import glob
 from pathlib import Path
 
 import pandas as pd
@@ -17,7 +24,13 @@ import matplotlib.pyplot as plt
 
 HERE = Path(__file__).resolve().parent
 PROJECT_ROOT = HERE.parent.parent
+sys.path.insert(0, str(PROJECT_ROOT / "analysis"))
+from _tz_helper import (
+    DISPLAY_TZ, find_header_row, detect_csv_offset_hours, to_display_tz,
+)
+
 CW_DIR = PROJECT_ROOT / "load-tests" / "results" / "cloudwatch"
+LOCUST_DIR = PROJECT_ROOT / "load-tests" / "results"
 CHARTS_DIR = HERE / "charts"
 CHARTS_DIR.mkdir(exist_ok=True)
 
@@ -34,6 +47,11 @@ STAT_KEYWORDS = {
     "errors": ["errores", "errors", "error", "limitaciones", "throttle"],
 }
 
+SCEN = re.compile(
+    r"(?P<op>resize|grayscale|edge)_(?P<size>small|medium|large)_"
+    r"(?P<u>\d+)u_rep(?P<r>\d+)_stats_history\.csv$"
+)
+
 
 def _classify_column(col_name):
     name = str(col_name).lower()
@@ -45,33 +63,54 @@ def _classify_column(col_name):
     return "other"
 
 
-def _find_header_row(path):
-    """
-    AWS Console export starts with 5 metadata rows.  Detect the 'Label' row
-    (which has the human-readable stat names) and return its 0-indexed row
-    number.  Returns 0 for simple 2-column CSVs where data starts immediately.
-    """
-    with open(path, encoding="utf-8") as f:
-        for i, line in enumerate(f):
-            if i > 10:
-                break
-            first_cell = line.split(",", 1)[0].strip().strip('"').lower()
-            if first_cell == "label":
-                return i
-    return 0
+def _locust_midpoint_per_op():
+    """Return dict op -> UTC midpoint of all Locust scenarios for that op."""
+    mids = {}
+    per_op = {}
+    for f in glob.glob(str(LOCUST_DIR / "*_stats_history.csv")):
+        m = SCEN.search(f)
+        if not m:
+            continue
+        op = m.group("op")
+        df = pd.read_csv(f)
+        if df.empty or "Timestamp" not in df.columns:
+            continue
+        ts = pd.to_datetime(df["Timestamp"], unit="s", utc=True, errors="coerce").dropna()
+        if ts.empty:
+            continue
+        per_op.setdefault(op, []).extend([ts.iloc[0], ts.iloc[-1]])
+    for op, lst in per_op.items():
+        mn, mx = min(lst), max(lst)
+        mids[op] = mn + (mx - mn) / 2
+    return mids
 
 
-def load_metric(operation, metric):
+_OFFSET_CACHE = {}  # op -> offset_h
+
+
+def _get_offset_for(op, locust_mids):
+    if op in _OFFSET_CACHE:
+        return _OFFSET_CACHE[op]
+    inv = CW_DIR / f"{op}_invocations.csv"
+    if not inv.exists() or op not in locust_mids:
+        _OFFSET_CACHE[op] = 0
+        return 0
+    offset = detect_csv_offset_hours(inv, locust_mids[op])
+    _OFFSET_CACHE[op] = offset
+    return offset
+
+
+def load_metric(operation, metric, offset_h):
     path = CW_DIR / f"{operation}_{metric}.csv"
     if not path.exists():
         return None
-    header_row = _find_header_row(path)
+    header_row = find_header_row(path)
     raw = pd.read_csv(path, header=header_row)
     if raw.shape[1] < 2:
         return None
     out = pd.DataFrame()
-    # First column = timestamp
-    out["timestamp"] = pd.to_datetime(raw.iloc[:, 0], errors="coerce")
+    naive = pd.to_datetime(raw.iloc[:, 0], errors="coerce")
+    out["timestamp"] = to_display_tz(naive, offset_h)
     seen = set()
     for col in raw.columns[1:]:
         kind = _classify_column(col)
@@ -114,11 +153,12 @@ def check_files_present():
     return found, missing
 
 
-def plot_simple_over_time(metric, preferred_stats, title, ylabel, fname):
+def plot_simple_over_time(metric, preferred_stats, title, ylabel, fname, locust_mids):
     fig, ax = plt.subplots(figsize=(11, 5))
     plotted = False
     for op in OPERATIONS:
-        df = load_metric(op, metric)
+        offset = _get_offset_for(op, locust_mids)
+        df = load_metric(op, metric, offset)
         if df is None or df.empty:
             continue
         col = primary_column(df, preferred_stats)
@@ -129,7 +169,7 @@ def plot_simple_over_time(metric, preferred_stats, title, ylabel, fname):
     if not plotted:
         plt.close(fig)
         return
-    ax.set_xlabel("Time")
+    ax.set_xlabel(f"Time ({DISPLAY_TZ})")
     ax.set_ylabel(ylabel)
     ax.set_title(title)
     ax.legend(title="Lambda")
@@ -142,11 +182,12 @@ def plot_simple_over_time(metric, preferred_stats, title, ylabel, fname):
     print(f"  saved: {out.name}")
 
 
-def plot_duration_with_band():
+def plot_duration_with_band(locust_mids):
     fig, ax = plt.subplots(figsize=(11, 5.5))
     plotted = False
     for op in OPERATIONS:
-        df = load_metric(op, "duration")
+        offset = _get_offset_for(op, locust_mids)
+        df = load_metric(op, "duration", offset)
         if df is None or df.empty:
             continue
         avg_col = primary_column(df, ["avg", "sum", "min", "max"])
@@ -162,7 +203,7 @@ def plot_duration_with_band():
     if not plotted:
         plt.close(fig)
         return
-    ax.set_xlabel("Time")
+    ax.set_xlabel(f"Time ({DISPLAY_TZ})")
     ax.set_ylabel("Duration (ms)")
     ax.set_title("Server-side Lambda Duration over time (avg line, min-max band)")
     ax.legend(fontsize=8)
@@ -175,11 +216,12 @@ def plot_duration_with_band():
     print(f"  saved: {out.name}")
 
 
-def plot_duration_distribution():
+def plot_duration_distribution(locust_mids):
     fig, ax = plt.subplots(figsize=(8, 5))
     data, labels = [], []
     for op in OPERATIONS:
-        df = load_metric(op, "duration")
+        offset = _get_offset_for(op, locust_mids)
+        df = load_metric(op, "duration", offset)
         if df is None or df.empty:
             continue
         col = primary_column(df, ["avg", "sum", "max", "min"])
@@ -190,7 +232,7 @@ def plot_duration_distribution():
     if not data:
         plt.close(fig)
         return
-    bp = ax.boxplot(data, labels=labels, showfliers=False, patch_artist=True)
+    bp = ax.boxplot(data, tick_labels=labels, showfliers=False, patch_artist=True)
     for patch, op in zip(bp["boxes"], labels):
         patch.set_facecolor(PALETTE[op])
         patch.set_alpha(0.6)
@@ -204,13 +246,14 @@ def plot_duration_distribution():
     print(f"  saved: {out.name}")
 
 
-def plot_errors_with_success_rate():
+def plot_errors_with_success_rate(locust_mids):
     fig, ax = plt.subplots(figsize=(11, 5.5))
     ax2 = ax.twinx()
     plotted = False
     has_rate = False
     for op in OPERATIONS:
-        df = load_metric(op, "errors")
+        offset = _get_offset_for(op, locust_mids)
+        df = load_metric(op, "errors", offset)
         if df is None or df.empty:
             continue
         err_col = primary_column(df, ["sum", "errors", "max"])
@@ -225,7 +268,7 @@ def plot_errors_with_success_rate():
     if not plotted:
         plt.close(fig)
         return
-    ax.set_xlabel("Time")
+    ax.set_xlabel(f"Time ({DISPLAY_TZ})")
     ax.set_ylabel("Errors (count)")
     if has_rate:
         ax2.set_ylabel("Success rate (%)")
@@ -246,17 +289,18 @@ def plot_errors_with_success_rate():
     print(f"  saved: {out.name}")
 
 
-def summary_table():
+def summary_table(locust_mids):
     rows = []
     for op in OPERATIONS:
+        offset = _get_offset_for(op, locust_mids)
         row = {"lambda": f"{op}-fn"}
-        df = load_metric(op, "invocations")
+        df = load_metric(op, "invocations", offset)
         if df is not None and not df.empty:
             col = primary_column(df, ["sum", "max"])
             row["total_invocations"] = int(df[col].sum()) if col else None
         else:
             row["total_invocations"] = None
-        df = load_metric(op, "duration")
+        df = load_metric(op, "duration", offset)
         if df is not None and not df.empty:
             avg_col = primary_column(df, ["avg"])
             row["avg_duration_ms"] = round(df[avg_col].mean(), 1) if avg_col else None
@@ -271,13 +315,13 @@ def summary_table():
         else:
             for k in ("avg_duration_ms", "p95_duration_ms", "min_duration_ms", "max_duration_ms"):
                 row[k] = None
-        df = load_metric(op, "concurrent")
+        df = load_metric(op, "concurrent", offset)
         if df is not None and not df.empty:
             col = primary_column(df, ["max", "avg"])
             row["max_concurrent_executions"] = int(df[col].max()) if col else None
         else:
             row["max_concurrent_executions"] = None
-        df = load_metric(op, "errors")
+        df = load_metric(op, "errors", offset)
         if df is not None and not df.empty:
             err_col = primary_column(df, ["sum", "errors", "max"])
             row["total_errors"] = int(df[err_col].sum()) if err_col else 0
@@ -288,7 +332,7 @@ def summary_table():
         else:
             row["total_errors"] = 0
             row["min_success_rate_pct"] = None
-        df = load_metric(op, "throttles")
+        df = load_metric(op, "throttles", offset)
         if df is not None and not df.empty:
             col = primary_column(df, ["sum", "max"])
             row["total_throttles"] = int(df[col].sum()) if col else 0
@@ -310,29 +354,39 @@ def main():
     if found == 0:
         print("No CloudWatch CSVs found. Nothing to do.")
         return
-    print("Generating charts...")
+    print(f"Detecting CSV timezones (target display tz = {DISPLAY_TZ}):")
+    locust_mids = _locust_midpoint_per_op()
+    for op in OPERATIONS:
+        offset = _get_offset_for(op, locust_mids)
+        sign = "+" if offset > 0 else ""
+        print(f"  [{op}] CSV detected as UTC{sign}{offset}")
+    print()
+    print("Generating charts (all timestamps shown in {}):".format(DISPLAY_TZ))
     plot_simple_over_time(
         "concurrent", ["max", "avg"],
         "Concurrent Lambda executions over time",
         "Concurrent executions (max)",
         "concurrent_executions_over_time.png",
+        locust_mids,
     )
-    plot_duration_with_band()
+    plot_duration_with_band(locust_mids)
     plot_simple_over_time(
         "invocations", ["sum", "max"],
         "Lambda invocations rate over time",
         "Invocations per minute",
         "invocations_over_time.png",
+        locust_mids,
     )
-    plot_errors_with_success_rate()
+    plot_errors_with_success_rate(locust_mids)
     plot_simple_over_time(
         "throttles", ["sum", "max"],
         "Lambda throttled invocations over time",
         "Throttles per minute",
         "throttles_over_time.png",
+        locust_mids,
     )
-    plot_duration_distribution()
-    summary_table()
+    plot_duration_distribution(locust_mids)
+    summary_table(locust_mids)
     print("Done. Charts in analysis/cloudwatch/charts/")
 
 
